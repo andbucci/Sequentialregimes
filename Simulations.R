@@ -39,7 +39,7 @@ for(m in 1:Nsim){
                starting = list(cbind(rep(gamma1, ny), rep(c1, ny))), ncores = 6, constant = F)
   object = list(st = simulation$st[2:T1], y = y[2:T1,], Data = y[2:T1,], m = 2,
                 gamma = mod$Gammac[,1], c = mod$Gammac[,2], residuals = resid(mod),
-                Gtilde = mod$Gtilde, B = t(mod$Bhat))
+                Gtilde = mod$Gtilde, B =mod$B)
   plot.ts(y,main="Time Series", panel=my.ts.panel)
   LM1 = LMTEST(object)
   LMadj1 = FTEST(LM1, n = ny, m = 2, nX = ncol(object$Data), iT = T1-1) 
@@ -106,7 +106,7 @@ for(m in 1:Nsim){
                 starting = list(cbind(rep(1.5, ny), rep(1.5, ny))), ncores = 6)
   object1 = list(st = simulation$st[2:T1], y = y[2:T1,], Data = y[2:T1,], m = 2, gamma = mod$Gammac[,1],
                  c = mod$Gammac[,2], residuals = rbind(rep(0, ny),residuals(mod)),
-                 Gtilde = mod$Gtilde, B = t(mod$Bhat))
+                 Gtilde = mod$Gtilde, B = mod$B)
   LM1a = LMTEST(object1)
   LMadj1a = FTEST(LM1a, n = ny, m = 2, nX = ncol(object1$Data), iT = T1-1) 
   Wilk = wilks(object1)
