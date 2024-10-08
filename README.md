@@ -1,4 +1,4 @@
-The empirical sizes and powers can be computed running the file "Simulations.R", where one should specify "B1", "T1", and "ny" to get the different panels in the article.
+The empirical sizes can be computed running the file "Simulations.R", where one should specify "B1", "T1", and "ny" to get the different panels in the article.
 
 The selection frequencies can be obtained running the file "Selection frequencies.R".
 
