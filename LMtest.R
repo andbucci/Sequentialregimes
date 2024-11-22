@@ -28,7 +28,7 @@ DerGFunc <- function(Psit,BX,ip,im,ms,mgamma,mc)
   return(RET)
 }
 
-LMTEST <- function(object, d = 3){
+LMTEST <- function(object, d = 3, method = 'VLSTAR'){
   mY = as.matrix(object$y)
   mX = as.matrix(object$Data)
   st <- object$st
@@ -51,9 +51,7 @@ LMTEST <- function(object, d = 3){
   iT = dim(mY)[1]
   ip = dim(mY)[2]
   iDF = dim(mZ)[2]*ip
-  #ee <- object$residual[2:nrow(object$residuals),]
   ee <- object$residual
-  Omega <- (t(ee) %*% ee)/(nrowx-ncoly)
   It <- diag(nrowx)
   ###Derivative of Gt
   if(object$m >1){
@@ -70,19 +68,19 @@ LMTEST <- function(object, d = 3){
       mK = rbind(mK,Kt)
     }
     mU = svd(mK)$u
-    #mE = mY - mX%*%solve(t(mX)%*%mX)%*%t(mX)%*%mY
     mE = ee - (mU%*%t(mU))%*%ee
     mXX = cbind(mK, mZ)
-  }else{
-    mE = mY - mX%*%MASS::ginv(t(mX)%*%mX,tol = 1e-20)%*%t(mX)%*%mY
-    mXX = cbind(mX, mZ)
-    mk = mE - mXX%*%MASS::ginv(t(mXX)%*%mXX,tol = 1e-20)%*%t(mXX)%*%mE
+  }else{if(method == 'VLSTAR'){
+    mE = mY - mX%*%MASS::ginv(t(mX)%*%mX)%*%t(mX)%*%mY
+    mXX = cbind(mX, mZ)}else{
+      mE = ee
+      mXX = cbind(mX, mZ)
+    }
   }
-  #mE = ee
   RSS0 = t(mE)%*%mE
   mK = mE - mXX%*%ginv(t(mXX)%*%mXX)%*%t(mXX)%*%mE
   RSS1 = t(mK)%*%mK
-  dTR = sum(diag(solve(RSS0)%*%RSS1))
+  dTR = sum(diag(MASS::ginv(RSS0)%*%RSS1))
   LM = iT*(ip-dTR)
   pval = 1-pchisq(LM,df=iDF)
   return(list(LM = LM, pvalue= pval, df = iDF))
@@ -99,7 +97,7 @@ FTEST <- function(LM, iT, m, n, nX)
   return(list(LM = FT, pvalue = pval, df1 = iDF1, df2 = iDF2))
 }
 
-wilks <- function(object, d = 3, method = 'LVSTAR'){
+wilks <- function(object, d = 3, method = 'VLSTAR'){
   mY = as.matrix(object$y)
   mX = as.matrix(object$Data)
   st <- object$st
@@ -124,12 +122,9 @@ wilks <- function(object, d = 3, method = 'LVSTAR'){
   iz = dim(mZ)[2]
   ix = ncolx
   iDF = iz*ip
-  #ee <- object$residual[2:nrow(ee),]
   ee <- object$residual
-  Omega <- (t(ee) %*% ee)/(nrowx-ncoly)
   It <- diag(nrowx)
-  if(method == 'LVSTAR'){
-    if(object$m > 1){
+  if(object$m > 1){
       ###Derivative of Gt
       dimgit = dim(object$Gtilde[[1]])[1]
       mK = NULL
@@ -144,22 +139,17 @@ wilks <- function(object, d = 3, method = 'LVSTAR'){
         mK = rbind(mK,Kt)
       }
       mU = svd(mK)$u
-      #mE = mY - mX%*%solve(t(mX)%*%mX)%*%t(mX)%*%mY
       mE = ee - (mU%*%t(mU))%*%ee
       mXX = cbind(mK, mZ)
-    }else{
-      mE = mY - mX%*%solve(t(mX)%*%mX,tol = 1e-20)%*%t(mX)%*%mY
+  }else{if(method == 'VLSTAR'){
+    mE = mY - mX%*%MASS::ginv(t(mX)%*%mX)%*%t(mX)%*%mY
+    mXX = cbind(mX, mZ)}else{
+      mE = ee
       mXX = cbind(mX, mZ)
-      mK = mE - mXX%*%solve(t(mXX)%*%mXX,tol = 1e-20)%*%t(mXX)%*%mE
     }
-  } else if(method == 'TVAR'){
-    mE = ee
-    mXX = cbind(mX, mZ)
-  }
-  #mE = ee
+  } 
   RSS0 = t(mE)%*%mE
-  mK1 = mE - mXX%*%ginv(t(mXX)%*%mXX)%*%t(mXX)%*%mE
-  #mK1 = mE - mK%*%solve(t(mK)%*%mK)%*%t(mK)%*%mE
+  mK1 = mE - mXX%*%MASS::ginv(t(mXX)%*%mXX)%*%t(mXX)%*%mE
   RSS1 = t(mK1)%*%mK1
   R0 = svd(RSS0)$d
   R1 = svd(RSS1)$d

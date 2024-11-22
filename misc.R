@@ -476,6 +476,13 @@ VLSTAR <- function(y, exo = NULL, p = 1,
   names1 <- as.matrix(do.call(rbind,names1))
   rownames(BBhat) <- names1
   colnames(BBhat) <- colnames(y)
+  regime_matrices <- list()
+  for (regime in 1:m) {
+         start_row <- (regime - 1) * ncol(x) + 1
+         end_row <- start_row + ncol(x) - 1
+         regime_matrices[[regime]] <- BBhat[start_row:end_row, , drop = FALSE]
+  }
+  BB <- do.call(cbind, regime_matrices)
   modeldata <- list(y, x)
   fitte <- fitte[!is.na(fitte[,1]),]
   results <- list(BBhat, covbb, ttest, pval, cgam1, Omegahat, fitte, residuals1, ll1, ll2, AIC1, BIC1, Gtilde, modeldata, BB, m, p,
@@ -667,304 +674,28 @@ starting <- function(y, exo = NULL, p = 1,
   return(results)
 }
 
-
-logl2 = function(ti, data){
-  mY = data$mY
-  X1 = as.matrix(data$X1)
-  st = data$st
-  T1 = nrow(mY)
-  e1 = matrix(0, nrow = 2, ncol = T1)
-  
-  # Calcolo delle lunghezze
-  len_beta_y = ncol(X1)
-  len_beta_x = ncol(X1)
-  len_psi_y = ncol(X1)  # Presumendo che le dimensioni di psiy e psix siano uguali a ncol(X1)
-  len_psi_x = ncol(X1)
-  
-  # Indici per i parametri
-  beta_y_start = 5
-  beta_y_end = beta_y_start + len_beta_y - 1
-  
-  beta_x_start = beta_y_end + 1
-  beta_x_end = beta_x_start + len_beta_x - 1
-  
-  psi_y_start = beta_x_end + 1
-  psi_y_end = psi_y_start + len_psi_y - 1
-  
-  psi_x_start = psi_y_end + 1
-  psi_x_end = psi_x_start + len_psi_x - 1
-  
-  for(t in 1:T1){
-    fy = 1 / (1 + exp(-ti[1] * (st[t] - ti[3])))
-    fx = 1 / (1 + exp(-ti[2] * (st[t] - ti[4])))
-    
-    e1[1, t] = mY[t, 1] - X1[t, ] %*% ti[beta_y_start:beta_y_end] - fy*(X1[t, ] %*% ti[psi_y_start:psi_y_end])
-    e1[2, t] = mY[t, 2] - X1[t, ] %*% ti[beta_x_start:beta_x_end] - fx * (X1[t, ] %*% ti[psi_x_start:psi_x_end])
-  }
-  
-  # Calcolo della matrice di covarianza
-  o1 = e1 %*% t(e1) / T1  # Dividing by T1 for sample covariance
-  io1 = solve(o1)
-  
-  # Log-likelihood components
-  log_det_o1 = log(det(o1))
-  quadratic_form = colSums((io1 %*% e1) * e1)
-  
-  log_likelihood = -T1 * nrow(mY) * 0.5 * log(2 * pi) - 0.5 * T1 * log_det_o1 - 0.5 * sum(quadratic_form)
-  
-  return(-log_likelihood)  # Negative for minimization
-}
-
-SSR2 = function(ti, data){
-  mY = data$mY
-  X1 = as.matrix(data$X1)
-  st = data$st
-  T1 = nrow(mY)
-  e1 = matrix(0, nrow = 2, ncol = T1)
-  
-  # Calcolo delle lunghezze
-  len_beta_y = ncol(X1)
-  len_beta_x = ncol(X1)
-  len_psi_y = ncol(X1)  # Presumendo che le dimensioni di psiy e psix siano uguali a ncol(X1)
-  len_psi_x = ncol(X1)
-  
-  # Indici per i parametri
-  beta_y_start = 5
-  beta_y_end = beta_y_start + len_beta_y - 1
-  
-  beta_x_start = beta_y_end + 1
-  beta_x_end = beta_x_start + len_beta_x - 1
-  
-  psi_y_start = beta_x_end + 1
-  psi_y_end = psi_y_start + len_psi_y - 1
-  
-  psi_x_start = psi_y_end + 1
-  psi_x_end = psi_x_start + len_psi_x - 1
-  SSR = 0
-  for(t in 1:T1){
-    fy = 1 / (1 + exp(-ti[1] * (st[t] - ti[3])))
-    fx = 1 / (1 + exp(-ti[2] * (st[t] - ti[4])))
-    
-    e1[1, t] = mY[t, 1] - X1[t, ] %*% ti[beta_y_start:beta_y_end] - fy*(X1[t, ] %*% ti[psi_y_start:psi_y_end])
-    e1[2, t] = mY[t, 2] - X1[t, ] %*% ti[beta_x_start:beta_x_end] - fx * (X1[t, ] %*% ti[psi_x_start:psi_x_end])
-    SSR = t(e1[,t])%*%e1[,t]+SSR
-  }
-  return(SSR)  # Negative for minimization
-}
-
-logl2m3 = function(ti, data){
-  mY = data$mY  # Matrix of dependent variables
-  X1 = as.matrix(data$X1)
-  st = data$st
-  T1 = nrow(mY)
-  e1 = matrix(0, nrow = 2, ncol = T1)
-  
-  # Define lengths and indices
-  len_beta_y = ncol(X1)
-  len_beta_x = ncol(X1)
-  len_psi_y = ncol(X1)
-  len_psi_x = ncol(X1)
-  len_theta_y = ncol(X1)
-  len_theta_x = ncol(X1)
-  
-  beta_y_start = 9
-  beta_y_end = beta_y_start + len_beta_y - 1
-  beta_x_start = beta_y_end + 1
-  beta_x_end = beta_x_start + len_beta_x - 1
-  psi_y_start = beta_x_end + 1
-  psi_y_end = psi_y_start + len_psi_y - 1
-  psi_x_start = psi_y_end + 1
-  psi_x_end = psi_x_start + len_psi_x - 1
-  theta_y_start = psi_x_end + 1
-  theta_y_end = theta_y_start + len_theta_y - 1
-  theta_x_start = theta_y_end + 1
-  theta_x_end = theta_x_start + len_theta_x - 1
-  
-  for(t in 1:T1){
-    fy1 = 1 / (1 + exp(-ti[1] * (st[t] - ti[5])))
-    fx1 = 1 / (1 + exp(-ti[2] * (st[t] - ti[6])))
-    
-    fy2 = 1 / (1 + exp(-ti[3] * (st[t] - ti[7])))
-    fx2 = 1 / (1 + exp(-ti[4] * (st[t] - ti[8])))    
-    
-    e1[1,t]=mY[t,1]-X1[t,]%*%ti[beta_y_start:beta_y_end]-fy1*(X1[t,]%*%ti[psi_y_start:psi_y_end])-fy2*(X1[t,]%*%ti[theta_y_start:theta_y_end])
-    e1[2,t]=mY[t,2]-X1[t,]%*%ti[beta_x_start:beta_x_end]-fx1*(X1[t,]%*%ti[psi_x_start:psi_x_end])-fx2*(X1[t,]%*%ti[theta_x_start:theta_x_end])
-  }
-  
-  # Calculate the covariance matrix
-  o1 = e1 %*% t(e1) / T1  # Dividing by T1 for sample covariance
-  io1 = solve(o1)
-  
-  # Log-likelihood components
-  log_det_o1 = log(det(o1))
-  quadratic_form = colSums((io1 %*% e1) * e1)
-  
-  log_likelihood = -T1 * nrow(mY) * 0.5 * log(2 * pi) - 0.5 * T1 * log_det_o1 - 0.5 * sum(quadratic_form)
-  
-  return(-log_likelihood)  # Negative for minimization
-}
-
-SSR3 = function(ti, data){
-  mY = data$mY  # Matrix of dependent variables
-  X1 = as.matrix(data$X1)
-  st = data$st
-  T1 = nrow(mY)
-  e1 = matrix(0, nrow = 2, ncol = T1)
-  
-  # Define lengths and indices
-  len_beta_y = ncol(X1)
-  len_beta_x = ncol(X1)
-  len_psi_y = ncol(X1)
-  len_psi_x = ncol(X1)
-  len_theta_y = ncol(X1)
-  len_theta_x = ncol(X1)
-  
-  beta_y_start = 9
-  beta_y_end = beta_y_start + len_beta_y - 1
-  beta_x_start = beta_y_end + 1
-  beta_x_end = beta_x_start + len_beta_x - 1
-  psi_y_start = beta_x_end + 1
-  psi_y_end = psi_y_start + len_psi_y - 1
-  psi_x_start = psi_y_end + 1
-  psi_x_end = psi_x_start + len_psi_x - 1
-  theta_y_start = psi_x_end + 1
-  theta_y_end = theta_y_start + len_theta_y - 1
-  theta_x_start = theta_y_end + 1
-  theta_x_end = theta_x_start + len_theta_x - 1
-  
-  SSR = 0
-  for(t in 1:T1){
-    fy1 = 1 / (1 + exp(-ti[1] * (st[t] - ti[5])))
-    fx1 = 1 / (1 + exp(-ti[2] * (st[t] - ti[6])))
-    
-    fy2 = 1 / (1 + exp(-ti[3] * (st[t] - ti[7])))
-    fx2 = 1 / (1 + exp(-ti[4] * (st[t] - ti[8])))    
-    
-    e1[1,t]=mY[t,1]-X1[t,]%*%ti[beta_y_start:beta_y_end]-fy1*(X1[t,]%*%ti[psi_y_start:psi_y_end])-fy2*(X1[t,]%*%ti[theta_y_start:theta_y_end])
-    e1[2,t]=mY[t,2]-X1[t,]%*%ti[beta_x_start:beta_x_end]-fx1*(X1[t,]%*%ti[psi_x_start:psi_x_end])-fx2*(X1[t,]%*%ti[theta_x_start:theta_x_end])
-    SSR = t(e1[,t])%*%e1[,t]+SSR
-  }
-  return(-SSR)  # Negative for minimization
-}
-
-res2 = function(ti, data){
-  mY = data$mY
-  X1 = as.matrix(data$X1)
-  st = data$st
-  T1 = nrow(mY)
-  lenX1 = ncol(X1)
-  
-  # Indexes definition
-  gamma_y_index = 1
-  gamma_x_index = 2
-  c_y_index = 3
-  c_x_index = 4
-  
-  betay_start = 5
-  betay_end = betay_start + lenX1 - 1
-  
-  betax_start = betay_end + 1
-  betax_end = betax_start + lenX1 - 1
-  
-  psiy_start = betax_end + 1
-  psiy_end = psiy_start + lenX1 - 1
-  
-  psix_start = psiy_end + 1
-  psix_end = psix_start + lenX1 - 1
-  
-  # Length check of ti
-  total_params = psix_end
-  if (length(ti) != total_params) {
-    stop("The length of ti does not correspond to the expected number of parameters.")
-  }
-  
-  # Parameters extraction
-  betay = ti[betay_start:betay_end]
-  betax = ti[betax_start:betax_end]
-  psiy = ti[psiy_start:psiy_end]
-  psix = ti[psix_start:psix_end]
-  
-  e1 = matrix(0, nrow = 2, ncol = T1)
-  Gtilde = list()
-  
-  for(t in 1:T1){
-    fy = 1 / (1 + exp(-ti[gamma_y_index] * (st[t] - ti[c_y_index])))
-    fx = 1 / (1 + exp(-ti[gamma_x_index] * (st[t] - ti[c_x_index])))
-    
-    e1[1, t] = mY[t, 1] - X1[t, ] %*% betay - fy * (X1[t, ] %*% psiy)
-    e1[2, t] = mY[t, 2] - X1[t, ] %*% betax - fx * (X1[t, ] %*% psix)
-    Gtilde[[t]] = rbind(diag(2), diag(c(fy, fx)))
-  }
-  
-  return(list(residuals = e1, Gtilde = Gtilde))
-}
-
-res2m3 = function(ti, data){
-  mY = data$mY  # Matrix of dependent variables
-  X1 = as.matrix(data$X1)
-  st = data$st
-  T1 = nrow(mY)
-  e1 = matrix(0, nrow = 2, ncol = T1)
-  
-  # Define lengths and indices
-  len_beta_y = ncol(X1)
-  len_beta_x = ncol(X1)
-  len_psi_y = ncol(X1)
-  len_psi_x = ncol(X1)
-  len_theta_y = ncol(X1)
-  len_theta_x = ncol(X1)
-  
-  beta_y_start = 9
-  beta_y_end = beta_y_start + len_beta_y - 1
-  beta_x_start = beta_y_end + 1
-  beta_x_end = beta_x_start + len_beta_x - 1
-  psi_y_start = beta_x_end + 1
-  psi_y_end = psi_y_start + len_psi_y - 1
-  psi_x_start = psi_y_end + 1
-  psi_x_end = psi_x_start + len_psi_x - 1
-  theta_y_start = psi_x_end + 1
-  theta_y_end = theta_y_start + len_theta_y - 1
-  theta_x_start = theta_y_end + 1
-  theta_x_end = theta_x_start + len_theta_x - 1
-  Gtilde = list()
-  
-  for(t in 1:T1){
-    fy1 = 1 / (1 + exp(-ti[1] * (st[t] - ti[5])))
-    fx1 = 1 / (1 + exp(-ti[2] * (st[t] - ti[6])))
-    
-    fy2 = 1 / (1 + exp(-ti[3] * (st[t] - ti[7])))
-    fx2 = 1 / (1 + exp(-ti[4] * (st[t] - ti[8])))    
-    
-    e1[1,t]=mY[t,1]-X1[t,]%*%ti[beta_y_start:beta_y_end]-fy1*(X1[t,]%*%ti[psi_y_start:psi_y_end])-fy2*(X1[t,]%*%ti[theta_y_start:theta_y_end])
-    e1[2,t]=mY[t,2]-X1[t,]%*%ti[beta_x_start:beta_x_end]-fx1*(X1[t,]%*%ti[psi_x_start:psi_x_end])-fx2*(X1[t,]%*%ti[theta_x_start:theta_x_end])
-    Gtilde[[t]] = rbind(diag(2), diag(c(fy1, fx1)), diag(c(fy2, fx2)))
-  }
-  
-  return(list(residuals = e1, Gtilde = Gtilde))
-}
-
-
-TVAR.sim <- function(n, nsim, m, phi, c){
+TVAR.simexo <- function(n, nsim, m, phi, c){
   In = diag(n)
-  y = matrix(0, nrow = nsim, ncol = n)
-  epsilon = MASS::mvrnorm(nsim, mu = rep(0, n), Sigma = In)
+  nsimu = nsim+100
+  y = matrix(0, nrow = nsimu, ncol = n)
+  epsilon = MASS::mvrnorm(nsimu, mu = rep(0, n), Sigma = In)
   y[1,] = epsilon[1,]
-  epsilonst = rnorm(nsim)
-  st = rep(0, nsim)
+  epsilonst = rnorm(nsimu)
+  st = rep(0, nsimu)
   st[1] = epsilonst[1]
-  for(t in 2:nsim){
+  for(t in 2:nsimu){
     st[t] = 0.95 * st[(t-1)] + epsilonst[t]
   }
-  check = matrix(0, ncol = (m-1), nrow = nsim)
+  check = matrix(0, ncol = (m-1), nrow = nsimu)
   for(l in 1:(m-1)){
     check[(st<c[l]),l] = 1
   }
-  check1 = rep(0, nsim)
+  check1 = rep(0, nsimu)
   if(m == 3){
     check1[(check[,1] != check[,2])] = 1
   }
   checkoppo = +(!check)
-  for(i in 2:nsim){
+  for(i in 2:nsimu){
     if(m == 2){
       y[i,] =  (phi[[1]]%*% as.matrix(y[(i-1),]))*check[i,1] + (phi[[2]]%*% as.matrix(y[(i-1),]))*checkoppo[i,1] + epsilon[i,]
     } else if(m == 3){
@@ -972,186 +703,92 @@ TVAR.sim <- function(n, nsim, m, phi, c){
         (phi[[2]]%*% as.matrix(y[(i-1),]))*check1[i] + (phi[[3]]%*% as.matrix(y[(i-1),]))*checkoppo[i,2] + epsilon[i,]
     }
   }
-  return(list(sim = y, st = st, residuals = epsilon))
+  return(list(sim = tail(y,nsim), st = tail(st, nsim), residuals = tail(epsilon, nsim)))
 }
 
-
-logl1 = function(ti, data){
-  mY = data$mY  # Matrix of dependent variables
-  X = data$X    # Matrix of independent variables
-  X1 = data$X1
-  st = data$st
-  T1 = nrow(mY)
-  e1 = matrix(0, nrow = 2, ncol = T1)
+TVAR.sim <- function(n, nsim, m, phi, c){
+  In = diag(n)
+  nsimu = nsim + 100
+  y = matrix(0, nrow = nsimu, ncol = n)
+  epsilon = MASS::mvrnorm(nsimu, mu = rep(0, n), Sigma = In)
+  y[1, ] = epsilon[1, ]
   
-  # Define lengths and indices
-  len_beta_y = ncol(X)
-  len_beta_x = ncol(X)
-  len_psi_y = ncol(X1)
-  len_psi_x = ncol(X1)
+  st = rep(0, nsimu)
+  st[1] = y[1, 1]
   
-  beta_y_start = 5
-  beta_y_end = beta_y_start + len_beta_y - 1
-  beta_x_start = beta_y_end + 1
-  beta_x_end = beta_x_start + len_beta_x - 1
-  psi_y_start = beta_x_end + 1
-  psi_y_end = psi_y_start + len_psi_y - 1
-  psi_x_start = psi_y_end + 1
-  psi_x_end = psi_x_start + len_psi_x - 1
-  
-  for(t in 1:T1){
-    fy = 1 / (1 + exp(-ti[1] * (st[t] - ti[3])))
-    fx = 1 / (1 + exp(-ti[2] * (st[t] - ti[4])))
-    
-    e1[1, t] = mY[t, 1] - X[t, ] %*% ti[beta_y_start:beta_y_end] - fy * (X1[t, ] %*% ti[psi_y_start:psi_y_end])
-    e1[2, t] = mY[t, 2] - X[t, ] %*% ti[beta_x_start:beta_x_end] - fx * (X1[t, ] %*% ti[psi_x_start:psi_x_end])
+  check = matrix(0, nrow = nsimu, ncol = m - 1)
+  if (m == 3) {
+    check1 = rep(0, nsimu)
   }
   
-  # Calculate the covariance matrix
-  o1 = e1 %*% t(e1) / T1  # Dividing by T1 for sample covariance
-  io1 = solve(o1)
-  
-  # Log-likelihood components
-  log_det_o1 = log(det(o1))
-  quadratic_form = colSums((io1 %*% e1) * e1)
-  
-  log_likelihood = -T1 * nrow(mY) * 0.5 * log(2 * pi) - 0.5 * T1 * log_det_o1 - 0.5 * sum(quadratic_form)
-  
-  return(-log_likelihood)  # Negative for minimization
-}
-
-res1 = function(ti, data){
-  mY = data$mY
-  X = data$X
-  X1 = data$X1
-  st = data$st
-  T1 = nrow(mY)
-  lenX = ncol(X)
-  lenX1 = ncol(X1)
-  gamma_y_index = 1
-  gamma_x_index = 2
-  c_y_index = 3
-  c_x_index = 4
-  
-  betay_start = 5
-  betay_end = betay_start + lenX - 1
-  
-  betax_start = betay_end + 1
-  betax_end = betax_start + lenX - 1
-  
-  psiy_start = betax_end + 1
-  psiy_end = psiy_start + lenX1 - 1
-  
-  psix_start = psiy_end + 1
-  psix_end = psix_start + lenX1 - 1
-  
-  betay = ti[betay_start:betay_end]
-  betax = ti[betax_start:betax_end]
-  psiy = ti[psiy_start:psiy_end]
-  psix = ti[psix_start:psix_end]
-  
-  e1 = matrix(0, nrow = 2, ncol = T1)
-  
-  for(t in 1:T1){
-    fy = 1 / (1 + exp(-ti[gamma_y_index] * (st[t] - ti[c_y_index])))
-    fx = 1 / (1 + exp(-ti[gamma_x_index] * (st[t] - ti[c_x_index])))
+  for (i in 2:nsimu) {
+    st[i] = y[i - 1, 1]
     
-    e1[1, t] = mY[t, 1] - X[t, ] %*% betay - fy * (X1[t, ] %*% psiy)
-    e1[2, t] = mY[t, 2] - X[t, ] %*% betax - fx * (X1[t, ] %*% psix)
-  }
-  
-  return(list(residuals = e1))
-}
-
-
-split_vector <- function(v, chunk_size) {
-  grouping_factor <- ceiling(seq_along(v) / chunk_size)
-  split(v, grouping_factor)
-}
-
-split_to_matrices <- function(v, nrow, ncol) {
-  # Calculate the size of each chunk
-  chunk_size <- nrow * ncol
-  total_length <- length(v)
-  
-  # Calculate the number of chunks
-  num_chunks <- total_length / chunk_size
-  
-  # Check if the vector length is divisible by the chunk size
-  if (total_length %% chunk_size != 0) {
-    stop("The length of the vector is not divisible by the matrix size (nrow * ncol).")
-  }
-  
-  # Initialize an empty list to store the matrices
-  list_of_matrices <- vector("list", num_chunks)
-  
-  # Loop over each chunk and reshape it into a matrix
-  for (i in seq_len(num_chunks)) {
-    start_index <- (i - 1) * chunk_size + 1
-    end_index <- i * chunk_size
-    chunk <- v[start_index:end_index]
-    
-    # Reshape the chunk into a matrix
-    mat <- matrix(chunk, nrow = nrow, ncol = ncol, byrow = TRUE)
-    
-    # Store the matrix in the list
-    list_of_matrices[[i]] <- mat
-  }
-  
-  return(list_of_matrices)
-}
-
-
-MLiter = function(ti, ll, data = list(mY = mY, X1 = cbind(1, mX), st = st), n.iter = 100, 
-                  epsilon = 1e-4, m = 2, ncores = 6, verbose = TRUE){
-  loglik <- numeric(n.iter)
-  iter <- 1
-  err <- Inf
-  lower_bounds <- c(rep(0, 2*(m-1)), rep(apply(mY, 2, min), m-1), rep(-Inf, length(ti) - 2*(m-1)*ncol(mY)))
-  upper_bounds <- c(rep(100, 2*(m-1)), rep(apply(mY, 2, max), m-1), rep(Inf, length(ti) - 2*(m-1)*ncol(mY)))
-  cl <- makeCluster(ncores)     # set the number of processor cores
-  setDefaultCluster(cl=cl)
-  while (iter <= n.iter & err > epsilon) {
-    # log-likelihood minimization
-    modll1 <- optimParallel(
-      par = ti, fn = ll, data = data, 
-      lower = lower_bounds, upper = upper_bounds, 
-      method = "L-BFGS-B", control = list(maxit = 300), 
-      parallel = list(cl = cl, forward = FALSE, loginfo = FALSE))
-    
-    # Parameters update
-    ti <- modll1$par
-    if(verbose == T){
-      message(paste("iteration", iter, "complete\n"))
-      cat(paste('Log-likelihood:', round(modll1$value, 4), '\n'))
-    }
-    loglik[iter] <- modll1$value
-    
-    # Convergence criterion
-    if (iter >= 5) {
-      err <- max(abs(diff(loglik[(iter-4):(iter-1)])))
-    } else {
-      err <- Inf
+    for (l in 1:(m - 1)) {
+      check[i, l] = as.integer(st[i] < c[l])
     }
     
-    # Check of the convergence criterion
-    if (err < epsilon | iter == n.iter) {
-      if(verbose == T){message('Converged\n')}
-      break
+    if (m == 2) {
+      check_oppo = 1 - check[i, 1]
+      y[i, ] = (phi[[1]] %*% y[i - 1, ]) * check[i, 1] +
+        (phi[[2]] %*% y[i - 1, ]) * check_oppo + epsilon[i, ]
+    } else if (m == 3) {
+      check_oppo = 1 - check[i, 2]
+      check1[i] = as.integer(check[i, 1] != check[i, 2])
+      y[i, ] = (phi[[1]] %*% y[i - 1, ]) * check[i, 1] +
+        (phi[[2]] %*% y[i - 1, ]) * check1[i] +
+        (phi[[3]] %*% y[i - 1, ]) * check_oppo + epsilon[i, ]
     }
-    
-    iter <- iter + 1
   }
-  stopCluster(cl)
-  if(m == 2){
-    parmod1 = res2(modll1$par, data = list(mY = mY, X1 = cbind(1, mX), st = st))
-  }else{
-    parmod1 = res2m3(modll1$par, data = list(mY = mY, X1 = cbind(1, mX), st = st))
-  }
-  return(list(ti = ti, loglik = loglik[iter], residuals = parmod1$residuals, Gtilde = parmod1$Gtilde))
+  
+  return(list(sim = tail(y, nsim), st = tail(st, nsim), residuals = tail(epsilon, nsim)))
 }
 
-VLSTAR.sim <- function(n, nsim, m, B, c, gamma){
+VLSTAR.sim <- function(n, nsim, m, B, c, gamma, const = FALSE){
+  In = diag(n)
+  nsimu = nsim+100
+  y = matrix(0, nrow = nsimu, ncol = n)
+  epsilon = MASS::mvrnorm(nsimu, mu = rep(0, n), Sigma = In)
+  
+  # Initializing y[1,] and st[1]
+  y[1,] = epsilon[1,]
+  st = rep(0, nsimu)
+  st[1] = y[1,1]
+  
+  Psit = list()
+  Psitpre = list()
+  Itmp = diag(0.1, ncol = n, nrow = n)
+  Psit[[1]] = rbind(In, matrix(rep(Itmp, (m-1)), ncol = n, nrow = n*(m-1), byrow = TRUE))
+  Psitpre[[1]] <- rbind(In, matrix(rep(Itmp, (m-2)), ncol = n, nrow = n*(m-2), byrow = TRUE))
+  
+  for(i in 2:nsimu){
+    # Updating st
+    st[i] = y[(i-1), 1]
+    
+    # Computing Gtilde on the new st
+    Gtilde = In
+    for(l in 1:(m-1)){
+      G <- 1/(1 + exp(-gamma[l]*(st[i]-c[l])))
+      Gt = diag(G, ncol = n, nrow = n)
+      Gtilde = rbind(Gtilde, Gt)
+    }
+    
+    # Updating y
+    if(const == FALSE){
+      y[i,] =  t(Gtilde) %*% t(B)%*%y[(i-1),] + epsilon[i,]
+    }else if(const == TRUE){
+      y[i,] =  t(Gtilde) %*% t(B)%*%c(1,y[(i-1),]) + epsilon[i,]
+    }
+    
+    Psit[[i]] <- Gtilde
+    Psitpre[[i]] <- Gtilde[1:(n*(m-1)),]
+    }
+
+  return(list(sim = tail(y, nsim), Psit = tail(Psit, nsim), 
+              Psitpre = tail(Psitpre, nsim), st = tail(st, nsim), residuals = tail(epsilon, nsim)))
+}
+
+VLSTAR.simexo <- function(n, nsim, m, B, c, gamma, rho = 0.95){
   In = diag(n)
   y = matrix(0, nrow = nsim, ncol = n)
   epsilon = mvrnorm(nsim, mu = rep(0, n), Sigma = In)
@@ -1160,7 +797,7 @@ VLSTAR.sim <- function(n, nsim, m, B, c, gamma){
   st = rep(0, nsim)
   st[1] = epsilonst[1]
   for(t in 2:nsim){
-    st[t] = 0.95 * st[(t-1)] + epsilonst[t]
+    st[t] = rho * st[(t-1)] + epsilonst[t]
   }
   Psit = list()
   Psitpre = list()
@@ -1182,7 +819,102 @@ VLSTAR.sim <- function(n, nsim, m, B, c, gamma){
 }
 
 
+lognreg = function(ti, data){
+  mY = data$mY        # Matrice delle variabili dipendenti
+  X1 = as.matrix(data$X1)  # Matrice delle variabili indipendenti
+  st = data$st        # Variabile di stato
+  T1 = nrow(mY)       # Numero di osservazioni
+  n = ncol(mY)        # Numero di variabili dipendenti
+  nx = ncol(X1)
+  m = data$m          # Numero di regimi
+  
+  gamma_start = 1
+  gamma_end = n*(m-1)
+  c_start = gamma_end + 1
+  c_end = n*(m-1)*2
+  beta_start = c_end + 1
+  beta_end = beta_start-1+nx*n
+  psi_start = beta_end + 1
+  psi_end = psi_start-1+nx*n*(m-1)
+  
+  gammalist = split_vector(ti[gamma_start:gamma_end], n)
+  clist = split_vector(ti[c_start:c_end], n)
+  psilist = split_to_matrices(ti[psi_start:psi_end], n, nx)
+  beta = matrix(ti[beta_start:beta_end], ncol = nx, nrow = n, byrow = T)
+  
+  e1 = matrix(0, nrow = T1, ncol = n)  # Matrice degli errori
+  
+  for(t in 1:T1){
+    reg_effect = rep(0, n)
+    for(k in 1:(m-1)){
+      gt = matrix(0, nrow = n, ncol = n)
+      for(i in 1:n){
+        gt[i,i] = 1/(1 + exp(-gammalist[[k]][i] * (st[t] - clist[[k]][i])))
+      }
+      reg_effect = gt%*%psilist[[k]] %*% X1[t,] + reg_effect
+    }
+    e1[t,] = as.matrix(mY[t,] - beta%*%X1[t,] - reg_effect)
+  }
+  
+  # Calcolo della matrice di covarianza degli errori
+  o1 = t(e1) %*% e1 / T1
+  io1 = MASS::ginv(o1)
+  
+  log_det_o1 = log(det(o1))
+  
+  # Calcolo del termine quadratico
+  quadratic_form = sum((io1 %*% t(e1))*t(e1))
+  
+  # Calcolo della log-verosimiglianza
+  log_likelihood = -T1 * n * 0.5 * log(2 * pi) - 0.5 * T1 * log_det_o1 - 0.5 * quadratic_form
+  
+  return(-log_likelihood)  # Negativo per la minimizzazione
+}
+
+
 
 my.ts.panel <- function(x, col = col, bg = bg, pch = pch, type = type,  vpos=8.75, ...){
   lines(x, col = col, bg = bg, pch = pch, type = type, ...)
   abline(v=which(object$st>object$c), col = 'grey')}
+
+jsr <- function(A, B, max_prod_length = 5, norm_type = "spectral") {
+  # Check if matrices are square and of the same size
+  if (!all(dim(A) == dim(B)) || nrow(A) != ncol(A)) {
+    stop("Matrices A and B must be square and of the same dimensions.")
+  }
+  
+  n <- nrow(A)
+  
+  # List to store all products
+  products <- list()
+  
+  # Initialize with individual matrices
+  products[[1]] <- A
+  products[[2]] <- B
+  
+  # Generate all possible products up to max_prod_length
+  for (k in 2:max_prod_length) {
+    new_products <- list()
+    for (prod in products) {
+      new_products <- c(new_products, list(prod %*% A, prod %*% B))
+    }
+    products <- c(products, new_products)
+  }
+  
+  # Function to compute the norm of a matrix
+  compute_norm <- function(mat) {
+    if (norm_type == "spectral") {
+      return(max(abs(eigen(mat, only.values = TRUE)$values)))
+    } else {
+      return(norm(mat, type = norm_type))
+    }
+  }
+  
+  # Compute norms of all products
+  norms <- sapply(products, compute_norm)
+  
+  # Estimate the joint spectral radius
+  jsr_estimate <- max(norms)^(1 / max_prod_length)
+  
+  return(jsr_estimate)
+}

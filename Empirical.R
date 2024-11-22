@@ -9,7 +9,6 @@ library(xts)
 library(zoo)
 source('LMtest.R')
 source('misc.R')
-
 ####Empirical application on interest rates - Section 6.1####
 data <- read.csv2('TsayData.csv')
 data$Date <- as.Date(data$Date, format = '%d/%m/%Y')
@@ -27,10 +26,11 @@ p3 <- plot_ly(x = tindex, y = data$spreadavg, type="scatter", mode="lines",
 fig1 <- subplot(p1, p2,p3, nrows = 3)
 fig1
 
-####Table 10####
+####Table 6####
 mY = data[2:nrow(data),4:5]
 mX = data[1:(nrow(data)-1),4:5]
 st = data$spreadavg[2:nrow(data)]
+
 
 ####LM, LMresc and Wilks
 set.seed(3010)
@@ -44,46 +44,59 @@ for(j in 1:ny){
 object0 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(mY[1:(nrow(mY)-1),],1), m = 1, B = BVAR,
                residuals = rbind(rep(0, ny),residuals(modvar)))
 LM0 = LMTEST(object0)
-starvars::VLSTARjoint(mY, st = st)
 LMadj0 = FTEST(LM0, n = ny, m = 1, nX = ncol(object0$Data), iT = T1-1) 
 Wilk0 <- wilks(object0)
 Panel0 = cbind(rbind(LM0$LM, LMadj0$LM, Wilk0$Wilks), rbind(LM0$pval, LMadj0$pval, Wilk0$pval))
 Panel0
 
 ####Test vs m = 3
-data = list(mY = mY, X1 = cbind(1,mX), st = st)
 m = 2
-nparamH0 = (ncol(mX)+1)*m*2
 stam2 = starting(mY, st = st, n.combi = 20, ncores = 8)
-ti1 <- c(stam2[[1]][,1],stam2[[1]][,2], rep(0.3, nparamH0))
-MLm2 = MLiter(ti = ti1, ll = logl2, data = data, m = 2, epsilon = 1e-3)
-object1 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1, mY[1:(T1-1),]), m = 2, gamma = MLm2$ti[1:2],
-               c = MLm2$ti[3:4], residuals = t(MLm2$residuals[,-1]), 
-               Gtilde = MLm2$Gtilde[-1], B = matrix(MLm2$ti[5:length(ti1)], nrow = 3, ncol=4, byrow = T))
+mod = VLSTAR(mY, p = 1, st = st, method = 'NLS', n.iter = 20,
+             starting = stam2,
+             ncores = 6, constant = T, maxgamma = 50)
+object1 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1,mY[1:(T1-1),]), m = 2,
+               gamma = mod$Gammac[,1], c = mod$Gammac[,2], residuals = resid(mod),
+               Gtilde = mod$Gtilde, B =mod$B)
 LM1 = LMTEST(object1)
 LMadj1 = FTEST(LM1, n = ny, m = 2, nX = ncol(object1$Data), iT = T1-1) 
 Wilk1 <- wilks(object1)
-Panel1 = cbind(rbind(LM1$LM, LMadj1$LM, Wilk1$Wilks), rbind(LM1$pval, LMadj1$pval, Wilk1$pval))
+##ST approach
+modtv = tsDyn::TVAR(mY, lag = 1, include = 'const', model = 'TAR', thVar = st)
+tlist <- lapply(coef(modtv), t)
+Bhat = do.call(cbind, tlist)
+objectST = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1,mY[1:(T1-1),]), m = 1, B = Bhat,
+               residuals = resid(modtv))
+LM1ST = LMTEST(objectST, method = 'TVAR')
+LMadj1ST = FTEST(LM1ST, n = ny, m = 1, nX = ncol(objectST$Data), iT = T1-1) 
+Wilk1ST = wilks(objectST, method = 'TVAR')
+Panel1 = cbind(rbind(LM1$LM, LMadj1$LM, Wilk1$Wilks), rbind(LM1$pval, LMadj1$pval, Wilk1$pval), 
+               rbind(LM1ST$LM, LMadj1ST$LM, Wilk1ST$Wilks), rbind(LM1ST$pval, LMadj1ST$pval, Wilk1ST$pval))
 Panel1
 
-###Test vs m = 4
-m = 3
-nparamH0 = (ncol(mX)+1)*m*2
-stam3 = starting(mY, st = st, n.combi = 20, ncores = 8, m = 3)
-ti2 <- c(stam3[[1]][,1], stam3[[2]][,1], stam3[[1]][,2], stam3[[2]][,2], 
-         rep(0.3, nparamH0))
-MLm3 = MLiter(ti = ti2, ll = logl2m3, data = data, m = 3, epsilon = 1e-3)
-object2 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1, mY[1:(T1-1),]), m = 3, gamma = MLm3$ti[1:4],
-               c = MLm3$ti[5:8], residuals = t(MLm3$residuals[,-1]), 
-               Gtilde = MLm3$Gtilde[-1], B = matrix(MLm3$ti[9:length(ti2)], nrow = 3, ncol=6, byrow = T))
-LM2 = LMTEST(object2)
-LMadj2 = FTEST(LM2, n = ny, m = 3, nX = ncol(object2$Data), iT = T1-1) 
-Wilk2 <- wilks(object2)
-Panel2 = cbind(rbind(LM2$LM, LMadj2$LM, Wilk2$Wilks), rbind(LM2$pval, LMadj2$pval, Wilk2$pval))
-Panel2
+##Figure with regimes identified through ST
+time = 1:T1
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 2)) # 
+plot(time, mY[,1], type = "l", col = "black", ylim = range(mY[,1]), ylab = "y1", xlab = "")
+for (j in 1:T1) {
+  if (st[j] < getTh(modtv)) {
+    points(time[j], mY[j,1], pch = 2, col = "blue")
+  } else if (st[j] > getTh(modtv)) {
+    points(time[j], mY[j,1], pch = 15, col = "red") 
+  }
+}
+plot(time, mY[,2], type = "l", col = "black", ylim = range(mY[,2]), ylab = "y2", xlab = "")
+for (j in 1:T1) {
+  if (st[j] < getTh(modtv)) {
+    points(time[j], mY[j,2], pch = 2, col = "blue")
+  } else if (st[j] > getTh(modtv)) {
+    points(time[j], mY[j,2], pch = 15, col = "red") 
+  }
+}  
+par(mfrow = c(1, 1))
 
 ####Empirical application on river flows data - Section 6.2####
-###Figure 2 and Table 11
+###Figure 2 and Table 7
 data("ice.river")
 source('LMtest.R')
 source('misc.R')
@@ -101,13 +114,13 @@ p4 <- plot_ly(x = tindex, y = prec, type = 'scatter', mode = 'lines',
 fig2 <- subplot(p1, p2, p3, p4, nrows = 4)
 fig2
 
-####Table 11 - Panel A
-####st = temperature####
+####Table 7 - Panel A####
+##st = temperature##
 mY = ice.river[2:nrow(ice.river),1:2]
 mX = ice.river[1:(nrow(ice.river)-1),1:2]
 st = temp[1:(nrow(ice.river)-1)]
 
-####LM, LMresc and Wilks####
+#LM, LMresc and Wilks##
 set.seed(3010)
 T1 = nrow(mY)
 ny = ncol(mY)
@@ -122,50 +135,62 @@ LM0 = LMTEST(object0)
 starvars::VLSTARjoint(mY, st = st)
 LMadj0 = FTEST(LM0, n = ny, m = 1, nX = ncol(object0$Data), iT = T1-1) 
 Wilk0 <- wilks(object0)
-Panel0 = cbind(rbind(LM0$LM, LMadj0$LM, Wilk0$Wilks), rbind(LM0$pval, LMadj0$pval, Wilk0$pval))
-Panel0
+Panel0temp = cbind(rbind(LM0$LM, LMadj0$LM, Wilk0$Wilks), rbind(LM0$pval, LMadj0$pval, Wilk0$pval))
+Panel0temp
 
 
 ####Test vs m = 3
-data = list(mY = mY, X1 = cbind(1,mX), st = st)
 m = 2
-nparamH0 = (ncol(mX)+1)*m*2
-
-stam2 = starting(mY, st = st, n.combi = 20, ncores = 8)
-ti1 <- c(stam2[[1]][,1],stam2[[1]][,2], rep(0.3, nparamH0))
-MLm2 = MLiter(ti = ti1, ll = logl2, data = data, m = 2, epsilon = 1e-3)
-object1 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1, mY[1:(T1-1),]), m = 2, gamma = MLm2$ti[1:2],
-               c = MLm2$ti[3:4], residuals = t(MLm2$residuals[,-1]), 
-               Gtilde = MLm2$Gtilde[-1], B = matrix(MLm2$ti[5:length(ti1)], nrow = 3, ncol=4, byrow = T))
+stam2 = starting(mY, st = st, n.combi = 30, ncores = 8)
+mod = VLSTAR(mY, p = 1, st = st, method = 'NLS', n.iter = 200,
+             starting = stam2,
+             ncores = 6, constant = T, maxgamma = 50)
+object1 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1,mY[1:(T1-1),]), m = 2,
+               gamma = mod$Gammac[,1], c = mod$Gammac[,2], residuals = resid(mod),
+               Gtilde = mod$Gtilde, B = mod$B)
 LM1 = LMTEST(object1)
 LMadj1 = FTEST(LM1, n = ny, m = 2, nX = ncol(object1$Data), iT = T1-1) 
 Wilk1 <- wilks(object1)
-Panel1 = cbind(rbind(LM1$LM, LMadj1$LM, Wilk1$Wilks), rbind(LM1$pval, LMadj1$pval, Wilk1$pval))
-Panel1
+##ST approach
+modtv = tsDyn::TVAR(mY, lag = 1, include = 'const', model = 'TAR', thVar = temp[2:(nrow(ice.river))])
+tlist <- lapply(coef(modtv), t)
+Bhat = do.call(cbind, tlist)
+objectST = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1,mY[1:(T1-1),]), m = 1, B = Bhat,
+                residuals = resid(modtv))
+LM1ST = LMTEST(objectST, method = 'TVAR')
+LMadj1ST = FTEST(LM1ST, n = ny, m = 1, nX = ncol(objectST$Data), iT = T1-1) 
+Wilk1ST = wilks(objectST, method = 'TVAR')
+Panel1temp = cbind(rbind(LM1$LM, LMadj1$LM, Wilk1$Wilks), rbind(LM1$pval, LMadj1$pval, Wilk1$pval), 
+               rbind(LM1ST$LM, LMadj1ST$LM, Wilk1ST$Wilks), rbind(LM1ST$pval, LMadj1ST$pval, Wilk1ST$pval))
+Panel1temp
 
-###Test vs m = 4
-m=3
-nparamH0 = (ncol(mX)+1)*m*2
-stam3 = starting(mY, st = st, n.combi = 20, ncores = 8, m =3)
-ti2 <- c(stam3[[1]][,1], stam3[[2]][,1], stam3[[1]][,2], stam3[[2]][,2], 
-         rep(0.3, nparamH0))
-MLm3 = MLiter(ti = ti2, ll = logl2m3, data = data, m = 3, epsilon = 1e-3)
-object2 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1, mY[1:(T1-1),]), m = 3, gamma = MLm3$ti[1:4],
-               c = MLm3$ti[5:8], residuals = t(MLm3$residuals[,-1]), 
-               Gtilde = MLm3$Gtilde[-1], B = matrix(MLm3$ti[9:length(ti2)], nrow = 3, ncol=6, byrow = T))
-LM2 = LMTEST(object2)
-LMadj2 = FTEST(LM2, n = ny, m = 3, nX = ncol(object2$Data), iT = T1-1) 
-Wilk2 <- wilks(object2)
-Panel2 = cbind(rbind(LM2$LM, LMadj2$LM, Wilk2$Wilks), rbind(LM2$pval, LMadj2$pval, Wilk2$pval))
-Panel2
+time = 1:T1
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 2)) # 
+plot(time, mY[,1], type = "l", col = "black", ylim = range(mY[,1]), ylab = "y1", xlab = "")
+for (j in 1:T1) {
+  if (st[j] < getTh(modtv)) {
+    points(time[j], mY[j,1], pch = 2, col = "blue")
+  } else if (st[j] > getTh(modtv)) {
+    points(time[j], mY[j,1], pch = 15, col = "red") 
+  }
+}
+plot(time, mY[,2], type = "l", col = "black", ylim = range(mY[,2]), ylab = "y2", xlab = "")
+for (j in 1:T1) {
+  if (st[j] < getTh(modtv)) {
+    points(time[j], mY[j,2], pch = 2, col = "blue")
+  } else if (st[j] > getTh(modtv)) {
+    points(time[j], mY[j,2], pch = 15, col = "red") 
+  }
+}  
+par(mfrow = c(1, 1))
 
-
-####st = precipitation####
+####Table 7 - Panel B####
+##st = precipitation##
 mY = ice.river[2:nrow(ice.river),1:2]
 mX = ice.river[1:(nrow(ice.river)-1),1:2]
 st = prec[1:(nrow(ice.river)-1)]
 
-####LM, LMresc and Wilks####
+##LM, LMresc and Wilks##
 set.seed(3010)
 T1 = nrow(mY)
 ny = ncol(mY)
@@ -180,39 +205,51 @@ LM0 = LMTEST(object0)
 starvars::VLSTARjoint(mY, st = st)
 LMadj0 = FTEST(LM0, n = ny, m = 1, nX = ncol(object0$Data), iT = T1-1) 
 Wilk0 <- wilks(object0)
-Panel0 = cbind(rbind(LM0$LM, LMadj0$LM, Wilk0$Wilks), rbind(LM0$pval, LMadj0$pval, Wilk0$pval))
-Panel0
+Panel0prec = cbind(rbind(LM0$LM, LMadj0$LM, Wilk0$Wilks), rbind(LM0$pval, LMadj0$pval, Wilk0$pval))
+Panel0prec
 
 
 ####Test vs m = 3
-data = list(mY = mY, X1 = cbind(1,mX), st = st)
 m = 2
-nparamH0 = (ncol(mX)+1)*m*2
 stam2 = starting(mY, st = st, n.combi = 20, ncores = 8)
-ti1 <- c(stam2[[1]][,1],stam2[[1]][,2], rep(0.3, nparamH0))
-MLm2 = MLiter(ti = ti1, ll = logl2, data = data, m = 2, epsilon = 1e-3)
-object1 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1, mY[1:(T1-1),]), m = 2, gamma = MLm2$ti[1:2],
-               c = MLm2$ti[3:4], residuals = t(MLm2$residuals[,-1]), 
-               Gtilde = MLm2$Gtilde[-1], B = matrix(MLm2$ti[5:length(ti1)], nrow = 3, ncol=4, byrow = T))
+mod = VLSTAR(mY, p = 1, st = st, method = 'NLS', n.iter = 50,
+             starting = stam2,
+             ncores = 6, constant = T, maxgamma = 50)
+object1 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1,mY[1:(T1-1),]), m = 2,
+               gamma = mod$Gammac[,1], c = mod$Gammac[,2], residuals = resid(mod),
+               Gtilde = mod$Gtilde, B =mod$B)
 LM1 = LMTEST(object1)
 LMadj1 = FTEST(LM1, n = ny, m = 2, nX = ncol(object1$Data), iT = T1-1) 
 Wilk1 <- wilks(object1)
-Panel1 = cbind(rbind(LM1$LM, LMadj1$LM, Wilk1$Wilks), rbind(LM1$pval, LMadj1$pval, Wilk1$pval))
-Panel1
+##ST approach
+modtv = tsDyn::TVAR(mY, lag = 1, include = 'const', model = 'TAR', thVar = prec[2:(nrow(ice.river))])
+tlist <- lapply(coef(modtv), t)
+Bhat = do.call(cbind, tlist)
+objectST = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1,mY[1:(T1-1),]), m = 1, B = Bhat,
+                residuals = resid(modtv))
+LM1ST = LMTEST(objectST, method = 'TVAR')
+LMadj1ST = FTEST(LM1ST, n = ny, m = 1, nX = ncol(objectST$Data), iT = T1-1) 
+Wilk1ST = wilks(objectST, method = 'TVAR')
+Panel1prec = cbind(rbind(LM1$LM, LMadj1$LM, Wilk1$Wilks), rbind(LM1$pval, LMadj1$pval, Wilk1$pval), 
+               rbind(LM1ST$LM, LMadj1ST$LM, Wilk1ST$Wilks), rbind(LM1ST$pval, LMadj1ST$pval, Wilk1ST$pval))
+Panel1prec
 
-###Test vs m = 4
-data = list(mY = mY, X1 = cbind(1,mX), st = st)
-m=3
-nparamH0 = (ncol(mX)+1)*m*2
-stam3 = starting(mY, st = st, n.combi = 30, ncores = 8, m = 3)
-ti2 <- c(stam3[[1]][,1], stam3[[2]][,1], stam3[[1]][,2], stam3[[2]][,2], 
-         rep(0.1, nparamH0))
-MLm3 = MLiter(ti = ti2, ll = logl2m3, data = data, m = 3, epsilon = 1e-3)
-object2 = list(st = st[2:T1], y = mY[2:T1,], Data = cbind(1, mY[1:(T1-1),]), m = 3, gamma = MLm3$ti[1:4],
-               c = MLm3$ti[5:8], residuals = t(MLm3$residuals[,-1]), 
-               Gtilde = MLm3$Gtilde[-1], B = matrix(MLm3$ti[9:length(ti2)], nrow = 3, ncol=6, byrow = T))
-LM2 = LMTEST(object2)
-LMadj2 = FTEST(LM2, n = ny, m = 3, nX = ncol(object2$Data), iT = T1-1) 
-Wilk2 <- wilks(object2)
-Panel2 = cbind(rbind(LM2$LM, LMadj2$LM, Wilk2$Wilks), rbind(LM2$pval, LMadj2$pval, Wilk2$pval))
-Panel2
+time = 1:T1
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 2)) # 
+plot(time, mY[,1], type = "l", col = "black", ylim = range(mY[,1]), ylab = "y1", xlab = "")
+for (j in 1:T1) {
+  if (st[j] < getTh(modtv)) {
+    points(time[j], mY[j,1], pch = 2, col = "blue")
+  } else if (st[j] > getTh(modtv)) {
+    points(time[j], mY[j,1], pch = 15, col = "red") 
+  }
+}
+plot(time, mY[,2], type = "l", col = "black", ylim = range(mY[,2]), ylab = "y2", xlab = "")
+for (j in 1:T1) {
+  if (st[j] < getTh(modtv)) {
+    points(time[j], mY[j,2], pch = 2, col = "blue")
+  } else if (st[j] > getTh(modtv)) {
+    points(time[j], mY[j,2], pch = 15, col = "red") 
+  }
+}  
+par(mfrow = c(1, 1))
