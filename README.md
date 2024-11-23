@@ -1,3 +1,9 @@
+# Sequentialregimes repository
+
+This repository is attached to the paper "A sequential test procedure for the choice of the number of regimes in multivariate nonlinear models".
+
+## Usage
+
 The empirical sizes can be computed running the file "Empirical size.R", where one should specify "B1" and "T1" to get the different panels in the article.
 
 The selection frequencies can be obtained running the file "Selection frequencies.R".
