@@ -33,8 +33,13 @@ filename = paste('Empsize', T1, 'B',sub("\\.", "", minB), 'n', ny,'m',m, '.RData
 for(i in 1:Nsim){
   set.seed(1234+i)
   y = VAR.sim(B = B1, lag= 1, include = 'none', n = (T1+1))
-  object = list(y = y[2:T1,], Data = y[1:(T1-1),], m = 1, residual = NULL, st = y[1:(T1-1),1],
-                Gtilde = NULL, B = B1)
+  modvar = vars::VAR(y, p =1, type = 'none')
+  BVAR = matrix(0, ncol = ny, nrow = ny)
+  for(j in 1:ny){
+    BVAR[,j] = coef(modvar)[[j]][,1]
+  }
+  object = list(st = y[1:(T1-1),1], y = y[2:T1,], Data = y[1:(T1-1),], m = 1, B = BVAR,
+                 residuals = rbind(rep(0, ny),residuals(modvar)))
   plot.ts(y,main="Time Series", panel=my.ts.panel)
   LM1 = LMTEST(object)
   LMadj1 = FTEST(LM1, n = ny, m = 1, nX = ncol(object$Data), iT = T1-2) 
