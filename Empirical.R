@@ -5,6 +5,7 @@ library(plotly)
 library(starvars)
 library(tsDyn)
 library(tseries)
+library(urca)
 library(xts)
 library(zoo)
 source('LMtest.R')
@@ -25,6 +26,11 @@ p3 <- plot_ly(x = tindex, y = data$spreadavg, type="scatter", mode="lines",
               fill = "tozeroy",name = 'Moving average of spread')
 fig1 <- subplot(p1, p2,p3, nrows = 3)
 fig1
+
+###Testing cointegration
+lvl <- log(data[, 2:3])
+jotest = ca.jo(lvl[2:nrow(lvl),], ecdet = 'none')
+summary(jotest)
 
 ####Table 6####
 mY = data[2:nrow(data),4:5]
@@ -73,6 +79,28 @@ Wilk1ST = wilks(objectST, method = 'TVAR')
 Panel1 = cbind(rbind(LM1$LM, LMadj1$LM, Wilk1$Wilks), rbind(LM1$pval, LMadj1$pval, Wilk1$pval), 
                rbind(LM1ST$LM, LMadj1ST$LM, Wilk1ST$Wilks), rbind(LM1ST$pval, LMadj1ST$pval, Wilk1ST$pval))
 Panel1
+
+
+##Estimate m = 3 (for MSE)#
+m = 3
+stam3 = starting(mY, st = st, n.combi = 20, ncores = 8, m = 3)
+mod2 = VLSTAR(mY, p = 1, st = st, method = 'NLS', n.iter = 100,
+             starting = stam3, m = 3,
+             ncores = 6, constant = T, maxgamma = 50)
+modtv2 = tsDyn::TVAR(mY, lag = 1, include = 'const', model = 'TAR', thVar = st, nthresh = 2, trim = 0.05)
+
+##VECM
+modVECM <- VECM(lvl, lag = 1, r = 1, include = "none", estim = "ML")
+
+###Residuals
+resVECM = residuals(modVECM)
+resVLSTAR3 = residuals(mod2)
+resVTAR3 = residuals(modtv2)
+
+#MSE VECM vs MSE VLSTAR/VTAR with 3 regimes
+sum(diag(resVECM %*% t(resVECM)))/T1
+sum(diag(resVLSTAR3 %*% t(resVLSTAR3)))/T1
+sum(diag(resVTAR3 %*% t(resVTAR3)))/T1
 
 ##Figure with regimes identified through ST
 time = 1:T1
