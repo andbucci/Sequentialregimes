@@ -26,6 +26,7 @@ pvalWilkm2 = rep(NA, Nsim)
 pvalLMm3 = rep(NA, Nsim)
 pvalLMadm3 = rep(NA, Nsim)
 pvalWilkm3 = rep(NA, Nsim)
+AICm = matrix(NA, nrow = Nsim, ncol  = 3)
 filename = paste('SelFreqVLSTAR', T1, 'B',sub("\\.", "", minB), 'n', ny,'m',m, '.RData', sep = '')
 i=1
 for(i in 1:Nsim){
@@ -62,6 +63,7 @@ for(i in 1:Nsim){
   par(mfrow = c(1, 1))
   #Test H0: m=1
   modvar = vars::VAR(y, p =1, type = 'const')
+  AIC1 = AIC(modvar)
   BVAR = matrix(0, ncol = ny, nrow = (ny+1))
   for(j in 1:ny){
     BVAR[,j] = coef(modvar)[[j]][,1]
@@ -79,6 +81,7 @@ for(i in 1:Nsim){
   mod = VLSTAR(y, p = 1, st = simulation$st, method = 'NLS', n.iter = 20,
                starting = stam2,
                ncores = 6, constant = T, maxgamma = 20)
+  AIC2 = sum(mod$AIC)
   object2 = list(st = simulation$st[2:T1], y = y[2:T1,], Data = cbind(1,y[1:(T1-1),]), m = 2,
                 gamma = mod$Gammac[,1], c = mod$Gammac[,2], residuals = resid(mod),
                 Gtilde = mod$Gtilde, B =mod$B)
@@ -88,6 +91,13 @@ for(i in 1:Nsim){
   pvalLMm2[i] = LMm2$pvalue
   pvalLMadm2[i] = LMadjm2$pvalue
   pvalWilkm2[i] = Wilkm2$pvalue
+  ##m = 3 for AIC
+  stam3 = starting(y, st = simulation$st, n.combi = 20, ncores = 8, m = 3)
+  mod2 = VLSTAR(y, p = 1, st = simulation$st, method = 'NLS', n.iter = 20,
+                starting = stam3, m = 3,
+                ncores = 6, constant = T, maxgamma = 50, verbose = FALSE)
+  AIC3 = sum(mod2$AIC)
+  AICm[i,] = c(AIC1, AIC2, AIC3)
   #save.image(filename)
   if(pvalLMm1[i]>0.10){cat('m = 1')
   }else if(pvalLMm1[i]<0.10 & pvalLMm2[i]>0.10){
@@ -118,9 +128,13 @@ selfreq(Wilks, 0.10)*100
 selfreq(Wilks, 0.05)*100
 selfreq(Wilks, 0.01)*100
 
+AICm = as.data.frame(AICm)
+AICm$min_col <- apply(AICm, 1, which.min)
+table(AICm$min_col)*100/Nsim
+
 save.image(filename)
 
-####Table 3 - Simulation from a VLSTAR with m = 3####
+####Table 4 - Simulation from a VLSTAR with m = 3####
 library(sparsevar)
 library(sstvars)
 ny = 3 #number of dependent variables
@@ -154,6 +168,7 @@ pvalWilkm2 = rep(NA, Nsim)
 pvalLMm3 = rep(NA, Nsim)
 pvalLMadm3 = rep(NA, Nsim)
 pvalWilkm3 = rep(NA, Nsim)
+AICm = matrix(NA, nrow = Nsim, ncol  = 3)
 filename = paste('SelFreqVLSTAR', T1, 'B',sub("\\.", "", minB), 'n', ny,'m',m, '.RData', sep = '')
 i=1
 for(i in 1:Nsim){
@@ -197,6 +212,7 @@ for(i in 1:Nsim){
   par(mfrow = c(1, 1))
   #Test H0: m=1
   modvar = vars::VAR(y, p =1, type = 'const')
+  AIC1 = AIC(modvar)
   BVAR = matrix(0, ncol = ny, nrow = (ny+1))
   for(j in 1:ny){
     BVAR[,j] = coef(modvar)[[j]][,1]
@@ -214,6 +230,7 @@ for(i in 1:Nsim){
   mod = VLSTAR(y, p = 1, st = simulation$st, method = 'NLS', n.iter = 20,
                starting = stam2,
                ncores = 6, constant = T, maxgamma = 50)
+  AIC2 = sum(mod$AIC)
   object2 = list(st = simulation$st[2:T1], y = y[2:T1,], Data = cbind(1,y[1:(T1-1),]), m = 2,
                  gamma = mod$Gammac[,1], c = mod$Gammac[,2], residuals = resid(mod),
                  Gtilde = mod$Gtilde, B =mod$B)
@@ -224,6 +241,13 @@ for(i in 1:Nsim){
   pvalLMm2[i] = LMm2$pvalue
   pvalLMadm2[i] = LMadjm2$pvalue
   pvalWilkm2[i] = Wilkm2$pvalue
+  ##m = 3 for AIC
+  stam3 = starting(y, st = simulation$st, n.combi = 20, ncores = 8, m = 3)
+  mod2 = VLSTAR(y, p = 1, st = simulation$st, method = 'NLS', n.iter = 20,
+                starting = stam3, m = 3,
+                ncores = 6, constant = T, maxgamma = 50, verbose = FALSE)
+  AIC3 = sum(mod2$AIC)
+  AICm[i,] = c(AIC1, AIC2, AIC3)
   save.image(filename)
   if(pvalLMm1[i]>0.10){cat('m = 1 \n')
   }else if(pvalLMm1[i]<0.10 & pvalLMm2[i]>0.10){
@@ -254,9 +278,13 @@ selfreq(Wilks, 0.10)*100
 selfreq(Wilks, 0.05)*100
 selfreq(Wilks, 0.01)*100
 
+AICm = as.data.frame(AICm)
+AICm$min_col <- apply(AICm, 1, which.min)
+table(AICm$min_col)*100/Nsim
+
 save.image(filename)
 
-####Table 4 - Simulation from a VTAR with m = 2####
+####Table 6 - Simulation from a VTAR with m = 2####
 
 library(doParallel)
 library(MASS)
@@ -285,6 +313,8 @@ pvalWilkm2 = rep(NA, Nsim)
 pvalLMm3 = rep(NA, Nsim)
 pvalLMadm3 = rep(NA, Nsim)
 pvalWilkm3 = rep(NA, Nsim)
+AICm = matrix(NA, nrow = Nsim, ncol  = 3)
+AICST = matrix(NA, nrow = Nsim, ncol  = 3)
 i=1
 filename = paste('SelFreqVTAR', T1, 'B',sub("\\.", "", minB), 'n', ny,'m',m, '.RData', sep = '')
 for(i in 1:Nsim){
@@ -324,6 +354,7 @@ for(i in 1:Nsim){
   par(mfrow = c(1, 1))
   #Test H0: m=1
   modvar = vars::VAR(y, p =1, type = 'const')
+  AIC1 = AIC(modvar)
   BVAR = matrix(0, ncol = ny, nrow = (ny+1))
   for(j in 1:ny){
     BVAR[,j] = coef(modvar)[[j]][,1]
@@ -341,6 +372,7 @@ for(i in 1:Nsim){
   mod = VLSTAR(y, p = 1, st = simulation$st, method = 'NLS', n.iter = 20,
                starting = stam2,
                ncores = 6, constant = T, maxgamma = 20)
+  AIC2 = sum(mod$AIC)
   object2 = list(st = simulation$st[2:T1], y = y[2:T1,], Data = cbind(1,y[1:(T1-1),]), m = 2,
                  gamma = mod$Gammac[,1], c = mod$Gammac[,2], residuals = resid(mod),
                  Gtilde = mod$Gtilde, B =mod$B)
@@ -352,6 +384,7 @@ for(i in 1:Nsim){
   pvalWilkm2[i] = Wilkm2$pvalue
   #Test H0: m=2 ST APPROACH
   modtv = tsDyn::TVAR(y, lag = 1, include = 'const', model = 'TAR')
+  AIC2ST = AIC(modtv)
   tlist <- lapply(coef(modtv), t)
   Bhat = do.call(cbind, tlist)
   object3 = list(st = y[1:(T1-1),1], y = y[2:T1,], Data = cbind(1,y[1:(T1-1),]), m = 1, B = Bhat,
@@ -363,6 +396,16 @@ for(i in 1:Nsim){
   pvalLMm3[i] = LMm3$pvalue
   pvalLMadm3[i] = LMadjm3$pvalue
   pvalWilkm3[i] = Wilkm3$pvalue
+  ##m = 3 for AIC
+  stam3 = starting(y, st = simulation$st, n.combi = 20, ncores = 8, m = 3)
+  mod2 = VLSTAR(y, p = 1, st = simulation$st, method = 'NLS', n.iter = 20,
+                starting = stam3, m = 3,
+                ncores = 6, constant = T, maxgamma = 50, verbose = FALSE)
+  modtv2 = tsDyn::TVAR(y, lag = 1, include = 'const', model = 'TAR', nthresh = 2)
+  AIC3 = sum(mod2$AIC)
+  AIC3ST = AIC(modtv2)
+  AICm[i,] = c(AIC1, AIC2, AIC3)
+  AICST[i,] = c(AIC1, AIC2ST, AIC3ST)
   save.image(filename)
   if(pvalLMm1[i]>0.10){cat('m = 1 \n')
   }else if(pvalLMm1[i]<0.10 & pvalLMm2[i]>0.10){
@@ -408,7 +451,15 @@ selfreq(WilksST, 0.10)*100
 selfreq(WilksST, 0.05)*100
 selfreq(WilksST, 0.01)*100
 
-####Table 5 - Simulation from a VTAR with m = 3####
+AICm = as.data.frame(AICm)
+AICm$min_col <- as.numeric(apply(AICm, 1, which.min))
+table(AICm$min_col)*100/Nsim
+
+AICST = as.data.frame(AICST)
+AICST$min_col <- as.numeric(apply(AICST, 1, which.min))
+table(AICST$min_col)*100/Nsim
+
+####Table 7 - Simulation from a VTAR with m = 3####
 library(sparsevar)
 library(sstvars)
 library(doParallel)
@@ -443,6 +494,8 @@ pvalWilkm2 = rep(NA, Nsim)
 pvalLMm3 = rep(NA, Nsim)
 pvalLMadm3 = rep(NA, Nsim)
 pvalWilkm3 = rep(NA, Nsim)
+AICm = matrix(NA, nrow = Nsim, ncol  = 3)
+AICST = matrix(NA, nrow = Nsim, ncol  = 3)
 filename = paste('SelFreqVTAR', T1, 'B',sub("\\.", "", minB), 'n', ny,'m',m, '.RData', sep = '')
 i=1
 for(i in 1:Nsim){
@@ -486,6 +539,7 @@ for(i in 1:Nsim){
   par(mfrow = c(1, 1))
   #Test H0: m=1
   modvar = vars::VAR(y, p =1, type = 'const')
+  AIC1 = AIC(modvar)
   BVAR = matrix(0, ncol = ny, nrow = (ny+1))
   for(j in 1:ny){
     BVAR[,j] = coef(modvar)[[j]][,1]
@@ -503,6 +557,7 @@ for(i in 1:Nsim){
   mod = VLSTAR(y, p = 1, st = simulation$st, method = 'NLS', n.iter = 20,
                starting = stam2,
                ncores = 6, constant = T, maxgamma = 50)
+  AIC2 = sum(mod$AIC)
   object2 = list(st = simulation$st[2:T1], y = y[2:T1,], Data = cbind(1,y[1:(T1-1),]), m = 2,
                  gamma = mod$Gammac[,1], c = mod$Gammac[,2], residuals = resid(mod),
                  Gtilde = mod$Gtilde, B =mod$B)
@@ -515,6 +570,7 @@ for(i in 1:Nsim){
   pvalWilkm2[i] = Wilkm2$pvalue
   #Test H0: m=2 ST APPROACH
   modtv = tsDyn::TVAR(y, lag = 1, include = 'const', model = 'TAR')
+  AIC2ST = AIC(modtv)
   tlist <- lapply(coef(modtv), t)
   Bhat = do.call(cbind, tlist)
   object3 = list(st = y[1:(T1-1),1], y = y[2:T1,], Data = cbind(1,y[1:(T1-1),]), m = 1, B = Bhat,
@@ -526,6 +582,16 @@ for(i in 1:Nsim){
   pvalLMm3[i] = LMm3$pvalue
   pvalLMadm3[i] = LMadjm3$pvalue
   pvalWilkm3[i] = Wilkm3$pvalue
+  ##m = 3 for AIC
+  stam3 = starting(y, st = simulation$st, n.combi = 20, ncores = 8, m = 3)
+  mod2 = VLSTAR(y, p = 1, st = simulation$st, method = 'NLS', n.iter = 20,
+                starting = stam3, m = 3,
+                ncores = 6, constant = T, maxgamma = 50, verbose = FALSE)
+  modtv2 = tsDyn::TVAR(y, lag = 1, include = 'const', model = 'TAR', nthresh = 2)
+  AIC3 = sum(mod2$AIC)
+  AIC3ST = AIC(modtv2)
+  AICm[i,] = c(AIC1, AIC2, AIC3)
+  AICST[i,] = c(AIC1, AIC2ST, AIC3ST)
   save.image(filename)
   if(pvalLMm1[i]>0.10){cat('m = 1 \n')
   }else if(pvalLMm1[i]<0.10 & pvalLMm2[i]>0.10){
@@ -570,3 +636,12 @@ WilksST = data.frame(LMm1 = pvalWilkm1, LMm2 = pvalWilkm3)
 selfreq(WilksST, 0.10)*100
 selfreq(WilksST, 0.05)*100
 selfreq(WilksST, 0.01)*100
+
+AICm = as.data.frame(AICm)
+AICm$min_col <- as.numeric(apply(AICm, 1, which.min))
+table(AICm$min_col)*100/Nsim
+
+
+AICST = as.data.frame(AICST)
+AICST$min_col <- as.numeric(apply(AICST, 1, which.min))
+table(AICST$min_col)*100/Nsim
